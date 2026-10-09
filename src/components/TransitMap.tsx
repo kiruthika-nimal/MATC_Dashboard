@@ -7,13 +7,15 @@ import { routes, stops, useTransitStore } from '../store/useTransitStore'
 import type { BusGps } from '../types/transit'
 import 'leaflet/dist/leaflet.css'
 
-const center: [number, number] = [13.025, 80.235]
+const center: [number, number] = [17.41, 78.445]
 function TileErrors({ onError }: { onError: () => void }) { useMapEvents({ tileerror: onError }); return null }
 function Follow({ bus }: { bus?: BusGps }) { const map = useMap(); useEffect(() => { if (bus) map.setView([bus.lat, bus.lng], Math.max(map.getZoom(), 14), { animate: true }) }, [bus, map]); return null }
 function markerIcon(bus: BusGps, color: string) {
   const status = bus.status === 'GPS lost' ? '#9aa7b2' : bus.status === 'Moving' ? '#57d7a0' : '#f5bd65'
-  return L.divIcon({ className: 'bus-marker-wrap', html: `<div class="bus-marker" style="--route:${color};--status:${status};transform:rotate(${bus.headingDeg}deg)"><span>▲</span><b style="transform:rotate(${-bus.headingDeg}deg)">${bus.routeId}</b></div>`, iconSize: [46, 46], iconAnchor: [23, 23] })
+  const busIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="transform:rotate(${-bus.headingDeg}deg);display:block;flex-shrink:0"><path d="M4 16c0 .88.39 1.67 1 2.22V20a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-1.78C19.61 17.67 20 16.88 20 16V6c0-3.5-3.58-4-8-4S4 2.5 4 6v10zm3.5 1a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm9 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM16 11H8V7h8v4z"/></svg>`
+  return L.divIcon({ className: 'bus-marker-wrap', html: `<div class="bus-marker" style="--route:${color};--status:${status};transform:rotate(${bus.headingDeg}deg)">${busIcon}<b style="transform:rotate(${-bus.headingDeg}deg)">${bus.routeId}</b></div>`, iconSize: [48, 48], iconAnchor: [24, 24] })
 }
+
 export default function TransitMap({ compact = false }: { compact?: boolean }) {
   const buses = useTransitStore(s => s.buses); const requests = useTransitStore(s => s.requests)
   const [params] = useSearchParams(); const navigate = useNavigate(); const [selectedId, setSelectedId] = useState(params.get('bus')); const [layers, setLayers] = useState({ buses: true, routes: true, stops: true, assistance: true }); const [tileErrors, setTileErrors] = useState(0); const [routeFilter, setRouteFilter] = useState('All'); const [statusFilter, setStatusFilter] = useState('All')
@@ -23,7 +25,7 @@ export default function TransitMap({ compact = false }: { compact?: boolean }) {
   return <div className={`map-shell ${compact ? 'compact-map' : ''}`}>
     <div className="map-toolbar"><div className="filter-chips">{['All', ...routes.map(r => r.id)].map(r => <button key={r} className={routeFilter === r ? 'active' : ''} onClick={() => setRouteFilter(r)}>{r}</button>)}</div>{!compact && <select aria-label="Filter buses by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option>All</option><option>Moving</option><option>Dwelling</option><option>Delayed</option><option>GPS lost</option></select>}</div>
     {tileErrors > 2 && <div className="map-offline"><LocateFixed size={15} /> Map tiles unavailable (offline). GPS positions still shown.</div>}
-    <MapContainer center={center} zoom={compact ? 12 : 13} scrollWheelZoom={!compact} className="leaflet-map" aria-label="Live GPS map of Chennai transit fleet"><TileErrors onError={() => setTileErrors(v => v + 1)} /><TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="(c) OpenStreetMap contributors" /><Follow bus={selected} />
+    <MapContainer center={center} zoom={compact ? 12 : 13} scrollWheelZoom={!compact} className="leaflet-map" aria-label="Live GPS map of Hyderabad transit fleet"><TileErrors onError={() => setTileErrors(v => v + 1)} /><TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="(c) OpenStreetMap contributors" /><Follow bus={selected} />
       {layers.routes && routes.filter(r => routeFilter === 'All' || r.id === routeFilter).map(r => <Polyline key={r.id} positions={r.waypoints} pathOptions={{ color: r.color, weight: compact ? 2 : 4, opacity: .7 }} />)}
       {layers.stops && stops.map(stop => <span key={stop.id}><Circle center={[stop.lat, stop.lng]} radius={40} pathOptions={{ color: stop.accessibilityScore >= 80 ? '#57d7a0' : stop.accessibilityScore >= 50 ? '#f5bd65' : '#fa7784', fillOpacity: .08 }} /><CircleMarker center={[stop.lat, stop.lng]} radius={7} pathOptions={{ color: stop.accessibilityScore >= 80 ? '#57d7a0' : stop.accessibilityScore >= 50 ? '#f5bd65' : '#fa7784', fillColor: '#07121d', fillOpacity: 1 }} eventHandlers={{ click: () => navigate(`/live-map?stop=${stop.id}`) }}><Tooltip direction="top">{stop.name} · score {stop.accessibilityScore} · beacon {stop.beaconStatus}</Tooltip></CircleMarker></span>)}
       {layers.assistance && requests.filter(r => r.status !== 'Boarded').map(req => { const stop = stops.find(s => s.id === req.stopId)!; return <CircleMarker key={req.id} center={[stop.lat, stop.lng]} radius={11} pathOptions={{ color: '#aa91ff', fillColor: '#aa91ff', fillOpacity: .8, className: 'assistance-pulse' }}><Tooltip>{req.id} · {stop.name} · GPS ETA coarse</Tooltip></CircleMarker> })}
